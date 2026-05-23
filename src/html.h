@@ -109,6 +109,30 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     .learn-result .kv .val{color:#38bdf8;font-family:monospace;font-weight:600}
     .learn-hint{margin-top:12px;font-size:.72rem;color:#475569;line-height:1.5}
 
+    /* Settings modal */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:20;
+                   display:none;align-items:flex-end;justify-content:center}
+    .modal-overlay.open{display:flex}
+    .modal-sheet{background:#1e293b;border-radius:20px 20px 0 0;padding:24px 20px 32px;
+                 width:100%;max-width:480px}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .modal-title{font-size:.95rem;font-weight:700;color:#f1f5f9}
+    .modal-close{background:none;border:none;color:#64748b;font-size:1.3rem;cursor:pointer;
+                 padding:4px 8px;line-height:1}
+    .wifi-status-bar{font-size:.78rem;color:#94a3b8;background:#0f172a;padding:10px 12px;
+                     border-radius:8px;margin-bottom:16px}
+    .wifi-status-bar b{color:#4ade80}
+    .form-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;
+                color:#475569;margin-bottom:5px;display:block}
+    .settings-btn{background:none;border:none;color:#475569;font-size:1.15rem;
+                  cursor:pointer;padding:4px 6px;transition:color .15s}
+    .settings-btn:active{color:#38bdf8}
+
+    /* Save-to-device panel in learn tab */
+    .save-panel{margin-top:14px;padding:14px 16px;background:#1e293b;
+                border:1px solid #0369a1;border-radius:12px;display:none}
+    .save-panel-title{font-size:.78rem;color:#38bdf8;font-weight:600;margin-bottom:10px}
+
     /* Status bar */
     #status-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;
                 max-width:480px;padding:10px 20px;font-size:.72rem;color:#64748b;
@@ -120,8 +144,37 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <body>
 <header>
   <h1>&#128308; IR Remote</h1>
-  <div id="net-info">IP: <span>...</span></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div id="net-info">IP: <span>...</span></div>
+    <button class="settings-btn" onclick="openSettings()" title="C&#224;i &#273;&#7863;t WiFi">&#9881;&#65039;</button>
+  </div>
 </header>
+
+<!-- ── Settings modal ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-sheet">
+    <div class="modal-header">
+      <span class="modal-title">&#9881;&#65039; C&#224;i &#273;&#7863;t WiFi</span>
+      <button class="modal-close" onclick="closeSettings()">&#10005;</button>
+    </div>
+    <div class="wifi-status-bar">&#9679; &#272;ang d&#249;ng: <b id="ws-current-ssid">...</b></div>
+    <label class="form-label">T&#234;n WiFi (SSID)</label>
+    <div class="form-row" style="margin-bottom:12px">
+      <input class="form-input" id="ws-ssid" placeholder="T&#234;n m&#7841;ng WiFi" autocomplete="off" />
+    </div>
+    <label class="form-label">M&#7853;t kh&#7849;u</label>
+    <div class="form-row" style="margin-bottom:18px">
+      <input class="form-input" id="ws-pass" type="password" placeholder="M&#7853;t kh&#7849;u WiFi" autocomplete="new-password" />
+    </div>
+    <button class="btn-sm" style="width:100%" onclick="saveWifi()">
+      &#128190; L&#432;u &amp; kh&#7903;i &#273;&#7897;ng l&#7841;i ESP32
+    </button>
+    <p style="font-size:.7rem;color:#475569;text-align:center;margin-top:10px;line-height:1.5">
+      ESP32 s&#7869; t&#7921; k&#7871;t n&#7889;i WiFi m&#7899;i sau khi kh&#7903;i &#273;&#7897;ng l&#7841;i.<br>
+      M&#7903; tr&#236;nh duy&#7879;t l&#7841;i t&#7841;i IP m&#7899;i &#273;&#7875; ti&#7871;p t&#7909;c s&#7917; d&#7909;ng.
+    </p>
+  </div>
+</div>
 
 <div class="tabs">
   <button class="tab active" onclick="switchTab('tv')">&#128250; Tivi</button>
@@ -228,10 +281,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="kv"><span class="key">M&#227; hex</span><span class="val" id="lr-code">—</span></div>
     <div class="kv"><span class="key">S&#7889; bit</span><span class="val" id="lr-bits">—</span></div>
     <p class="learn-hint">
-      Sao ch&#233;p v&#224;o config.h:<br>
-      <code style="color:#38bdf8">#define MY_CMD &lt;m&#227; hex&gt;UL</code><br>
-      R&#7891;i s&#7917; d&#7909;ng <code style="color:#38bdf8">irSendNEC(MY_CMD)</code> ho&#7863;c g&#7885;i qua <code style="color:#38bdf8">POST /api/ir/raw</code>.
+      G&#7885;i tr&#7921;c ti&#7871;p qua API: <code style="color:#38bdf8">POST /api/ir/raw</code>
     </p>
+  </div>
+
+  <div class="save-panel" id="save-panel">
+    <div class="save-panel-title">&#128190; L&#432;u v&#224;o thi&#7871;t b&#7883;</div>
+    <div class="form-row" style="margin-bottom:8px">
+      <select class="form-input" id="save-dev-select" style="cursor:pointer"></select>
+    </div>
+    <div class="form-row">
+      <input class="form-input" id="save-cmd-name" placeholder="T&#234;n l&#7879;nh (v&#237; d&#7909;: power, vol_up)" />
+      <button class="btn-sm" onclick="saveLearnedToDevice()">L&#432;u</button>
+    </div>
   </div>
 </div>
 
@@ -347,12 +409,55 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     btn.innerHTML = '&#128225; B&#7855;t &#273;&#7847;u h&#7885;c m&#227; (10s)';
   }
 
-  function showLearnResult(d) {
+  async function showLearnResult(d) {
     document.getElementById('lr-proto').textContent = d.protocol;
     document.getElementById('lr-code').textContent  = d.code;
     document.getElementById('lr-bits').textContent  = d.bits + ' bit';
     document.getElementById('learn-result').style.display = 'block';
     setStatus('H&#7885;c m&#227; th&#224;nh c&#244;ng: ' + d.protocol + ' ' + d.code, 'ok');
+
+    // populate save-to-device panel
+    const sel = document.getElementById('save-dev-select');
+    sel.innerHTML = '';
+    try {
+      const devs = await fetch('/api/devices').then(r => r.json());
+      if (!devs.length) {
+        sel.innerHTML = '<option value="">-- Ch&#432;a c&#243; thi&#7871;t b&#7883; (t&#7841;o &#7903; tab Thi&#7871;t b&#7883;) --</option>';
+      } else {
+        sel.innerHTML = '<option value="">-- Ch&#7885;n thi&#7871;t b&#7883; --</option>';
+        devs.forEach(dv => {
+          const o = document.createElement('option');
+          o.value = dv.id;
+          o.textContent = dv.name + ' (' + dv.id + ')';
+          sel.appendChild(o);
+        });
+      }
+    } catch(_) {
+      sel.innerHTML = '<option value="">L&#7895;i t&#7843;i danh s&#225;ch</option>';
+    }
+    document.getElementById('save-cmd-name').value = '';
+    document.getElementById('save-panel').style.display = 'block';
+  }
+
+  async function saveLearnedToDevice() {
+    const devId   = document.getElementById('save-dev-select').value;
+    const cmdName = document.getElementById('save-cmd-name').value.trim();
+    const proto   = document.getElementById('lr-proto').textContent;
+    const code    = document.getElementById('lr-code').textContent;
+    const bits    = parseInt(document.getElementById('lr-bits').textContent);
+    if (!devId)   { setStatus('Ch&#7885;n thi&#7871;t b&#7883;', 'err'); return; }
+    if (!cmdName) { setStatus('Nh&#7853;p t&#234;n l&#7879;nh', 'err'); return; }
+    const r = await fetch('/api/devices/' + devId + '/cmds', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ cmd: cmdName, proto, code, bits })
+    });
+    if (r.ok) {
+      setStatus('&#10003; &#272;&#227; l&#432;u l&#7879;nh "' + cmdName + '" v&#224;o thi&#7871;t b&#7883;', 'ok');
+      document.getElementById('save-panel').style.display = 'none';
+    } else {
+      setStatus('L&#7895;i l&#432;u', 'err');
+    }
   }
 
   // ── Devices ─────────────────────────────────────────────────────────────────
@@ -465,6 +570,43 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       }
     }, 1000);
   }
+
+  // ── WiFi settings ───────────────────────────────────────────────────────────
+  async function openSettings() {
+    document.getElementById('settings-modal').classList.add('open');
+    try {
+      const d = await fetch('/api/wifi').then(r => r.json());
+      document.getElementById('ws-current-ssid').textContent = d.ssid || '?';
+      document.getElementById('ws-ssid').value = d.ssid || '';
+    } catch(_) {}
+  }
+
+  function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('open');
+  }
+
+  async function saveWifi() {
+    const ssid = document.getElementById('ws-ssid').value.trim();
+    const pass = document.getElementById('ws-pass').value;
+    if (!ssid) { setStatus('Nh&#7853;p t&#234;n WiFi', 'err'); return; }
+    const r = await fetch('/api/wifi', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ ssid, password: pass })
+    });
+    if (r.ok) {
+      closeSettings();
+      setStatus('&#10003; &#272;&#227; l&#432;u — ESP32 &#273;ang kh&#7903;i &#273;&#7897;ng l&#7841;i...', 'ok');
+    } else {
+      const d = await r.json();
+      setStatus('L&#7895;i: ' + (d.error || r.status), 'err');
+    }
+  }
+
+  // close modal when clicking backdrop
+  document.getElementById('settings-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeSettings();
+  });
 
   // ── Init ────────────────────────────────────────────────────────────────────
   async function loadStatus() {

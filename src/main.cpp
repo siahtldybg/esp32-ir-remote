@@ -18,6 +18,7 @@
 #include <uri/UriBraces.h>
 #include <ArduinoJson.h>
 #include "config.h"
+#include "wifi_cfg.h"
 #include "ir.h"
 #include "devices.h"
 #include "html.h"
@@ -170,6 +171,40 @@ void handleDevicesSendCmd() {
     ok ? "{\"ok\":true}" : "{\"error\":\"unsupported protocol\"}");
 }
 
+// ── WiFi config routes ────────────────────────────────────────────────────────
+
+static bool _pendingRestart = false;
+
+void handleWifiGet() {
+  addCors();
+  JsonDocument doc;
+  doc["ssid"] = WiFi.SSID();
+  doc["ip"]   = WiFi.localIP().toString();
+  String body; serializeJson(doc, body);
+  server.send(200, "application/json", body);
+}
+
+void handleWifiPost() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  JsonDocument req;
+  if (deserializeJson(req, server.arg("plain"))) {
+    server.send(400, "application/json", "{\"error\":\"invalid json\"}"); return;
+  }
+  String ssid = req["ssid"]     | "";
+  String pass = req["password"] | "";
+  if (ssid.isEmpty()) {
+    server.send(400, "application/json", "{\"error\":\"ssid required\"}"); return;
+  }
+  if (!wifiCfgSave(ssid, pass)) {
+    server.send(500, "application/json", "{\"error\":\"save failed\"}"); return;
+  }
+  server.send(200, "application/json", "{\"ok\":true,\"restarting\":true}");
+  _pendingRestart = true;
+}
+
 void handleIrLearnGet() {
   addCors();
   String proto, codeHex; uint16_t bits = 0;
@@ -191,9 +226,12 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 IR Remote ===");
 
+  String wSsid = WIFI_SSID, wPass = WIFI_PASSWORD;
+  if (wifiCfgLoad(wSsid, wPass))
+    Serial.println("[WiFi] Using saved credentials");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.printf("Connecting to %s", WIFI_SSID);
+  WiFi.begin(wSsid.c_str(), wPass.c_str());
+  Serial.printf("Connecting to %s", wSsid.c_str());
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 40) {
     delay(500); Serial.print("."); attempts++;
@@ -227,6 +265,10 @@ void setup() {
   server.on(UriBraces("/api/devices/{}/cmds"),     HTTP_OPTIONS, handleOptions);
   server.on(UriBraces("/api/devices/{}/cmd/{}"),   HTTP_POST,    handleDevicesSendCmd);
 
+  server.on("/api/wifi",   HTTP_GET,     handleWifiGet);
+  server.on("/api/wifi",   HTTP_POST,    handleWifiPost);
+  server.on("/api/wifi",   HTTP_OPTIONS, handleOptions);
+
   server.begin();
   Serial.printf("Web UI: http://%s\n", WiFi.localIP().toString().c_str());
 }
@@ -236,4 +278,5 @@ void setup() {
 void loop() {
   server.handleClient();
   irLearnPoll();
+  if (_pendingRestart) { delay(500); ESP.restart(); }
 }
