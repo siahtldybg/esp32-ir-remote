@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 495">
+  <style>text { font-family: 'Courier New', monospace; }</style>
+
+  <!-- Background -->
+  <rect width="820" height="495" fill="#f8fafc" rx="6"/>
+
+  <!-- Title -->
+  <text x="410" y="30" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">ESP32 IR Remote — Sơ đồ kết nối mạch</text>
+
+  <!-- ── Rails ─────────────────────────────────────────────────────────── -->
+  <!-- 3V3 rail: y=115, dashed red -->
+  <line x1="165" y1="115" x2="750" y2="115" stroke="#dc2626" stroke-width="2" stroke-dasharray="7,3"/>
+  <text x="756" y="119" font-size="9" fill="#dc2626" font-weight="bold">3V3</text>
+
+  <!-- GND rail: y=435, dashed dark -->
+  <line x1="165" y1="435" x2="750" y2="435" stroke="#374151" stroke-width="2" stroke-dasharray="7,3"/>
+  <text x="756" y="439" font-size="9" fill="#374151" font-weight="bold">GND</text>
+
+  <!-- ── ESP32 ───────────────────────────────────────────────────────────── -->
+  <rect x="15" y="50" width="150" height="390" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="90" y="77" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e3a8a">ESP32</text>
+  <text x="90" y="92" text-anchor="middle" font-size="9" fill="#1e3a8a">DevKit v1</text>
+
+  <!-- 3V3 pin -->
+  <line x1="155" y1="115" x2="165" y2="115" stroke="#dc2626" stroke-width="2"/>
+  <text x="150" y="111" text-anchor="end" font-size="9" fill="#dc2626" font-weight="bold">3V3</text>
+
+  <!-- GND pin -->
+  <line x1="155" y1="435" x2="165" y2="435" stroke="#374151" stroke-width="2"/>
+  <text x="150" y="431" text-anchor="end" font-size="9" fill="#374151" font-weight="bold">GND</text>
+
+  <!-- GPIO4 pin -->
+  <line x1="155" y1="295" x2="165" y2="295" stroke="#16a34a" stroke-width="2"/>
+  <text x="150" y="291" text-anchor="end" font-size="9" fill="#16a34a" font-weight="bold">GPIO 4</text>
+  <text x="150" y="303" text-anchor="end" font-size="7.5" fill="#64748b">IR TX</text>
+
+  <!-- GPIO5 pin -->
+  <line x1="155" y1="365" x2="165" y2="365" stroke="#7c3aed" stroke-width="2"/>
+  <text x="150" y="361" text-anchor="end" font-size="9" fill="#7c3aed" font-weight="bold">GPIO 5</text>
+  <text x="150" y="373" text-anchor="end" font-size="7.5" fill="#64748b">IR RX</text>
+
+  <!-- ── TX CIRCUIT ─────────────────────────────────────────────────────── -->
+
+  <!-- Tap on 3V3 rail at x=395 -->
+  <circle cx="395" cy="115" r="3.5" fill="#dc2626"/>
+  <!-- Wire: 3V3 rail → R2 top -->
+  <line x1="395" y1="115" x2="395" y2="132" stroke="#dc2626" stroke-width="2"/>
+
+  <!-- R2: 100Ω LED current limiter -->
+  <rect x="366" y="132" width="58" height="40" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="395" y="149" text-anchor="middle" font-size="9" font-weight="bold" fill="#92400e">R2</text>
+  <text x="395" y="163" text-anchor="middle" font-size="8.5" fill="#92400e">100 Ω</text>
+  <text x="366" y="128" font-size="7" fill="#a16207">LED limiter</text>
+
+  <!-- Wire: R2 bottom → LED anode -->
+  <line x1="395" y1="172" x2="395" y2="185" stroke="#dc2626" stroke-width="2"/>
+
+  <!-- IR LED D1 -->
+  <rect x="363" y="185" width="64" height="62" rx="4" fill="#d1fae5" stroke="#059669" stroke-width="1.5"/>
+  <text x="395" y="203" text-anchor="middle" font-size="9" font-weight="bold" fill="#065f46">D1</text>
+  <text x="395" y="217" text-anchor="middle" font-size="9" fill="#065f46">IR LED</text>
+  <text x="395" y="230" text-anchor="middle" font-size="8.5" fill="#065f46">940 nm</text>
+  <!-- Anode / Cathode -->
+  <text x="365" y="196" font-size="7" fill="#065f46">A+</text>
+  <text x="365" y="245" font-size="7" fill="#065f46">K−</text>
+  <!-- Emission lines -->
+  <line x1="430" y1="205" x2="443" y2="195" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="430" y1="215" x2="443" y2="205" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="430" y1="225" x2="443" y2="215" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+  <text x="445" y="199" font-size="9" fill="#059669">›</text>
+  <text x="445" y="210" font-size="9" fill="#059669">›</text>
+  <text x="445" y="221" font-size="9" fill="#059669">›</text>
+
+  <!-- Wire: LED cathode → Q1 Collector -->
+  <line x1="395" y1="247" x2="395" y2="257" stroke="#16a34a" stroke-width="2"/>
+
+  <!-- Q1: 2N2222 NPN -->
+  <rect x="330" y="257" width="130" height="80" rx="6" fill="#fef9c3" stroke="#ca8a04" stroke-width="2"/>
+  <text x="395" y="279" text-anchor="middle" font-size="10" font-weight="bold" fill="#78350f">Q1</text>
+  <text x="395" y="293" text-anchor="middle" font-size="9" fill="#78350f">2N2222 NPN</text>
+  <text x="395" y="307" text-anchor="middle" font-size="8" fill="#a16207">current amplifier</text>
+  <!-- Pin labels -->
+  <text x="333" y="300" font-size="7.5" fill="#92400e">Base</text>
+  <text x="381" y="270" font-size="7.5" fill="#92400e">C</text>
+  <text x="381" y="348" font-size="7.5" fill="#92400e">E</text>
+
+  <!-- Wire: Q1 Emitter → GND rail -->
+  <line x1="395" y1="337" x2="395" y2="435" stroke="#374151" stroke-width="2"/>
+  <circle cx="395" cy="435" r="3.5" fill="#374151"/>
+
+  <!-- R1: GPIO4 → Q1 Base -->
+  <line x1="165" y1="295" x2="215" y2="295" stroke="#16a34a" stroke-width="2"/>
+  <rect x="215" y="281" width="85" height="28" rx="4" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="257" y="295" text-anchor="middle" font-size="9" font-weight="bold" fill="#92400e">R1  100 Ω</text>
+  <text x="257" y="306" text-anchor="middle" font-size="7.5" fill="#92400e">base resistor</text>
+  <line x1="300" y1="295" x2="330" y2="295" stroke="#16a34a" stroke-width="2"/>
+
+  <!-- ── RX CIRCUIT ─────────────────────────────────────────────────────── -->
+
+  <!-- GPIO5 → TSOP OUT wire -->
+  <line x1="165" y1="365" x2="575" y2="365" stroke="#7c3aed" stroke-width="2"/>
+
+  <!-- TSOP38238 -->
+  <rect x="575" y="318" width="168" height="102" rx="6" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="659" y="341" text-anchor="middle" font-size="10" font-weight="bold" fill="#4c1d95">U1</text>
+  <text x="659" y="356" text-anchor="middle" font-size="9.5" fill="#4c1d95">TSOP38238</text>
+  <text x="659" y="370" text-anchor="middle" font-size="9" fill="#5b21b6">IR Receiver</text>
+  <text x="659" y="384" text-anchor="middle" font-size="8.5" fill="#6d28d9">38 kHz</text>
+  <!-- Pin labels -->
+  <text x="578" y="369" font-size="7.5" fill="#6d28d9">OUT</text>
+  <text x="645" y="331" text-anchor="middle" font-size="7.5" fill="#dc2626">VCC</text>
+  <text x="645" y="416" text-anchor="middle" font-size="7.5" fill="#374151">GND</text>
+
+  <!-- TSOP VCC: top → 3V3 rail -->
+  <line x1="645" y1="318" x2="645" y2="115" stroke="#dc2626" stroke-width="2"/>
+  <circle cx="645" cy="115" r="3.5" fill="#dc2626"/>
+
+  <!-- TSOP GND: bottom → GND rail -->
+  <line x1="645" y1="420" x2="645" y2="435" stroke="#374151" stroke-width="2"/>
+  <circle cx="645" cy="435" r="3.5" fill="#374151"/>
+
+  <!-- ── NOTES ───────────────────────────────────────────────────────────── -->
+  <rect x="470" y="255" width="100" height="55" rx="4" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+  <text x="520" y="271" text-anchor="middle" font-size="8" font-weight="bold" fill="#991b1b">Lưu ý</text>
+  <text x="520" y="284" text-anchor="middle" font-size="7.5" fill="#7f1d1d">IR LED cần</text>
+  <text x="520" y="296" text-anchor="middle" font-size="7.5" fill="#7f1d1d">100–200 mA</text>
+  <text x="520" y="308" text-anchor="middle" font-size="7.5" fill="#7f1d1d">→ cần 2N2222</text>
+
+  <!-- ── LEGEND ─────────────────────────────────────────────────────────── -->
+  <rect x="15" y="458" width="510" height="28" rx="4" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+  <line x1="28" y1="472" x2="54" y2="472" stroke="#dc2626" stroke-width="2" stroke-dasharray="5,2"/>
+  <text x="59" y="476" font-size="8.5" fill="#374151">VCC 3.3V</text>
+  <line x1="122" y1="472" x2="148" y2="472" stroke="#374151" stroke-width="2" stroke-dasharray="5,2"/>
+  <text x="153" y="476" font-size="8.5" fill="#374151">GND</text>
+  <line x1="190" y1="472" x2="216" y2="472" stroke="#16a34a" stroke-width="2"/>
+  <text x="221" y="476" font-size="8.5" fill="#374151">GPIO TX — phát IR (GPIO 4)</text>
+  <line x1="385" y1="472" x2="411" y2="472" stroke="#7c3aed" stroke-width="2"/>
+  <text x="416" y="476" font-size="8.5" fill="#374151">GPIO RX — thu IR (GPIO 5)</text>
+</svg>
