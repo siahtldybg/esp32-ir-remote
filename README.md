@@ -115,12 +115,14 @@ Danh sách thiết bị tùy ý được lưu trong `/devices.json` trên **Litt
     "id": "tv_phong_khach",
     "name": "TV Phòng Khách",
     "cmds": {
-      "power": { "proto": "NEC", "code": "0xE0E040BF", "bits": 32 },
-      "vol_up": { "proto": "NEC", "code": "0xE0E0E01F", "bits": 32 }
+      "power":  { "label": "Bật / Tắt", "proto": "NEC", "code": "0xE0E040BF", "bits": 32 },
+      "vol_up": { "label": "Vol +",     "proto": "NEC", "code": "0xE0E0E01F", "bits": 32 }
     }
   }
 ]
 ```
+
+`label` là tên hiển thị trên nút bấm; `cmd` key là ID dùng trong API. Web UI tự sinh ID từ nhãn (ví dụ "Bật / Tắt" → `bat_tat`) — người dùng có thể sửa thủ công nếu muốn.
 
 Dữ liệu sống sót qua mất điện, reboot, OTA. Thêm thiết bị mới hoàn toàn qua web UI — không cần reflash.
 
@@ -165,7 +167,7 @@ Dữ liệu sống sót qua mất điện, reboot, OTA. Thêm thiết bị mới
 | GET | `/api/devices` | Danh sách tất cả thiết bị |
 | POST | `/api/devices` | `{ "id":"tv_phong_ngu", "name":"TV Phòng Ngủ" }` |
 | DELETE | `/api/devices/:id` | Xóa thiết bị |
-| POST | `/api/devices/:id/cmds` | `{ "cmd":"power", "proto":"NEC", "code":"0x...", "bits":32 }` |
+| POST | `/api/devices/:id/cmds` | `{ "cmd":"power", "label":"Bật / Tắt", "proto":"NEC", "code":"0x...", "bits":32 }` |
 | POST | `/api/devices/:id/cmd/:cmd` | Gửi lệnh theo tên |
 
 ### Lệnh TV (`device: "tv"`)
@@ -243,15 +245,15 @@ Mở địa chỉ đó trên điện thoại (cùng mạng WiFi).
 
 1. Mở web UI → tab **Thiết bị**
 2. Nhập ID và tên → **+ Thêm**
-3. Nhấn **+ Học lệnh** trong card thiết bị → nhập tên lệnh → **Học**
+3. Nhấn **+ Học lệnh** trong card thiết bị → nhập **Nhãn** (ví dụ: "Bật / Tắt") → ID tự điền → **Học**
 4. Hướng remote gốc vào TSOP38238, nhấn nút cần học
-5. Mã lưu vào Flash, xuất hiện ngay thành nút bấm trong card
+5. Mã lưu vào Flash, xuất hiện ngay thành nút bấm (hiển thị nhãn) trong card
 
 **Hoặc học mã trước, lưu vào thiết bị sau:**
 
 1. Tab **Học** → **Bắt đầu học mã** → nhấn remote gốc
 2. Kết quả hiện protocol/code/bits
-3. Panel "Lưu vào thiết bị" tự mở → chọn thiết bị, nhập tên lệnh → **Lưu**
+3. Panel "Lưu vào thiết bị" tự mở → chọn thiết bị, nhập **Nhãn** + ID (tự điền) → **Lưu**
 
 ### Đổi WiFi (không reflash, không USB)
 
