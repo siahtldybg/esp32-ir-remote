@@ -70,6 +70,35 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     /* Fan grid */
     .fan-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 
+    /* Devices tab */
+    .dev-card{background:#1e293b;border:1px solid #334155;border-radius:12px;
+              padding:14px 16px;margin-bottom:10px}
+    .dev-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .dev-name{font-size:.9rem;font-weight:600;color:#f1f5f9}
+    .dev-id{font-size:.68rem;color:#475569;margin-top:2px}
+    .dev-del{background:none;border:none;color:#64748b;font-size:1rem;cursor:pointer;padding:4px}
+    .dev-del:active{color:#f87171}
+    .cmd-chips{display:flex;flex-wrap:wrap;gap:6px}
+    .cmd-chip{padding:7px 12px;border:none;border-radius:8px;background:#0f172a;
+              color:#94a3b8;font-size:.75rem;font-weight:600;cursor:pointer;
+              border:1px solid #1e293b;transition:background .12s}
+    .cmd-chip:active{background:#334155;color:#e2e8f0}
+    .add-dev-form{background:#1e293b;border:1px solid #334155;border-radius:12px;
+                  padding:16px;margin-bottom:14px}
+    .form-row{display:flex;gap:8px;margin-bottom:8px}
+    .form-input{flex:1;padding:9px 12px;border-radius:8px;border:1px solid #334155;
+                background:#0f172a;color:#e2e8f0;font-size:.82rem;outline:none}
+    .form-input:focus{border-color:#38bdf8}
+    .btn-sm{padding:9px 14px;border:none;border-radius:8px;background:#0369a1;
+            color:#e0f2fe;font-size:.78rem;font-weight:600;cursor:pointer;white-space:nowrap}
+    .btn-sm:active{background:#0284c7}
+    .btn-sm.danger{background:#7f1d1d;color:#fca5a5}
+    .section-title{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;
+                   color:#475569;margin:18px 0 10px}
+    .learn-picker{background:#1e293b;border:1px solid #38bdf8;border-radius:12px;
+                  padding:14px;margin-bottom:14px;display:none}
+    .learn-picker p{font-size:.78rem;color:#94a3b8;margin-bottom:10px}
+
     /* Learn tab */
     .learn-note{color:#64748b;font-size:.82rem;line-height:1.6;margin-bottom:20px;
                 background:#1e293b;padding:14px;border-radius:10px;border:1px solid #334155}
@@ -96,9 +125,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
 <div class="tabs">
   <button class="tab active" onclick="switchTab('tv')">&#128250; Tivi</button>
-  <button class="tab" onclick="switchTab('ac')">&#10052;&#65039; &#272;i&#7873;u h&#242;a</button>
+  <button class="tab" onclick="switchTab('ac')">&#10052;&#65039; &#272;H&#242;a</button>
   <button class="tab" onclick="switchTab('fan')">&#128168; Qu&#7841;t</button>
-  <button class="tab" onclick="switchTab('learn')">&#128225; H&#7885;c m&#227;</button>
+  <button class="tab" onclick="switchTab('devices')">&#128273; Thi&#7871;t b&#7883;</button>
+  <button class="tab" onclick="switchTab('learn')">&#128225; H&#7885;c</button>
 </div>
 
 <!-- ── TV ─────────────────────────────────────────────────────────────────── -->
@@ -157,6 +187,35 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   </div>
 </div>
 
+<!-- ── Devices ─────────────────────────────────────────────────────────────── -->
+<div class="pane" id="pane-devices">
+  <!-- Add device form -->
+  <div class="section-title">Th&#234;m thi&#7871;t b&#7883;</div>
+  <div class="add-dev-form">
+    <div class="form-row">
+      <input class="form-input" id="dev-id"   placeholder="ID (v&#237;d&#7909;: dieu_hoa_phong_ngu)" />
+    </div>
+    <div class="form-row">
+      <input class="form-input" id="dev-name" placeholder="T&#234;n hi&#7875;n th&#7883; (v&#237;d&#7909;: &#272;i&#7873;u h&#242;a ph&#242;ng ng&#7911;)" />
+      <button class="btn-sm" onclick="createDevice()">+ Th&#234;m</button>
+    </div>
+  </div>
+
+  <!-- Learn & bind picker (shown when adding a command) -->
+  <div class="learn-picker" id="learn-picker">
+    <p>&#128225; H&#432;&#7899;ng &#273;i&#7873;u khi&#7875;n g&#7889;c v&#224;o m&#7855;t th&#7847;n v&#224; nh&#7845;n n&#250;t c&#7847;n h&#7885;c...</p>
+    <div class="form-row">
+      <input class="form-input" id="lp-cmdname" placeholder="T&#234;n l&#7879;nh (v&#237;d&#7909;: power, vol_up)" />
+      <button class="btn-sm" id="lp-btn" onclick="learnAndBind()">&#128225; H&#7885;c</button>
+    </div>
+    <button class="btn-sm danger" style="width:100%;margin-top:4px" onclick="closePicker()">H&#7911;y</button>
+  </div>
+
+  <!-- Device list -->
+  <div class="section-title">Danh s&#225;ch thi&#7871;t b&#7883;</div>
+  <div id="dev-list"><p style="color:#475569;font-size:.8rem">Ch&#432;a c&#243; thi&#7871;t b&#7883; n&#224;o.</p></div>
+</div>
+
 <!-- ── Learn ──────────────────────────────────────────────────────────────── -->
 <div class="pane" id="pane-learn">
   <div class="learn-note">
@@ -183,12 +242,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   let ac = { power: false, temp: 25, mode: 'cool', fan: 'auto' };
 
   // ── Tab ─────────────────────────────────────────────────────────────────────
-  const TAB_NAMES = ['tv','ac','fan','learn'];
+  const TAB_NAMES = ['tv','ac','fan','devices','learn'];
   function switchTab(name) {
     document.querySelectorAll('.tab').forEach((t, i) =>
       t.classList.toggle('active', TAB_NAMES[i] === name));
     document.querySelectorAll('.pane').forEach(p =>
       p.classList.toggle('active', p.id === 'pane-' + name));
+    if (name === 'devices') loadDevices();
   }
 
   // ── Status bar ──────────────────────────────────────────────────────────────
@@ -293,6 +353,117 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     document.getElementById('lr-bits').textContent  = d.bits + ' bit';
     document.getElementById('learn-result').style.display = 'block';
     setStatus('H&#7885;c m&#227; th&#224;nh c&#244;ng: ' + d.protocol + ' ' + d.code, 'ok');
+  }
+
+  // ── Devices ─────────────────────────────────────────────────────────────────
+  let _pickerDevId = null;
+
+  async function loadDevices() {
+    try {
+      const r = await fetch('/api/devices');
+      const devs = await r.json();
+      const list = document.getElementById('dev-list');
+      if (!devs.length) {
+        list.innerHTML = '<p style="color:#475569;font-size:.8rem">Ch&#432;a c&#243; thi&#7871;t b&#7883; n&#224;o.</p>';
+        return;
+      }
+      list.innerHTML = devs.map(dev => {
+        const cmds = Object.keys(dev.cmds || {});
+        const cmdBtns = cmds.map(c =>
+          `<button class="cmd-chip" onclick="sendDevCmd('${dev.id}','${c}')">${c}</button>`
+        ).join('');
+        return `<div class="dev-card">
+          <div class="dev-card-header">
+            <div><div class="dev-name">${dev.name}</div><div class="dev-id">${dev.id}</div></div>
+            <button class="dev-del" onclick="deleteDevice('${dev.id}')">&#128465;</button>
+          </div>
+          <div class="cmd-chips">${cmdBtns}
+            <button class="cmd-chip" style="border-color:#0369a1;color:#38bdf8"
+              onclick="openPicker('${dev.id}')">+ H&#7885;c l&#7879;nh</button>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(e) { setStatus('L&#7895;i t&#7843;i danh s&#225;ch', 'err'); }
+  }
+
+  async function createDevice() {
+    const id   = document.getElementById('dev-id').value.trim();
+    const name = document.getElementById('dev-name').value.trim();
+    if (!id || !name) { setStatus('Nh&#7853;p ID v&#224; t&#234;n thi&#7871;t b&#7883;', 'err'); return; }
+    const r = await fetch('/api/devices', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id, name})
+    });
+    const d = await r.json();
+    if (r.ok) {
+      document.getElementById('dev-id').value = '';
+      document.getElementById('dev-name').value = '';
+      setStatus('&#10003; &#272;&#227; th&#234;m thi&#7871;t b&#7883;: ' + name, 'ok');
+      loadDevices();
+    } else { setStatus('L&#7895;i: ' + d.error, 'err'); }
+  }
+
+  async function deleteDevice(id) {
+    if (!confirm('X&#243;a thi&#7871;t b&#7883; ' + id + '?')) return;
+    const r = await fetch('/api/devices/' + id, { method: 'DELETE' });
+    setStatus(r.ok ? '&#10003; &#272;&#227; x&#243;a' : 'L&#7895;i x&#243;a', r.ok ? 'ok' : 'err');
+    loadDevices();
+  }
+
+  async function sendDevCmd(id, cmd) {
+    try {
+      const r = await fetch('/api/devices/' + id + '/cmd/' + cmd, { method: 'POST' });
+      setStatus(r.ok ? '&#10003; ' + id + ' &#8594; ' + cmd : 'L&#7895;i HTTP ' + r.status, r.ok ? 'ok' : 'err');
+    } catch(e) { setStatus('L&#7895;i k&#7871;t n&#7889;i', 'err'); }
+  }
+
+  function openPicker(devId) {
+    _pickerDevId = devId;
+    document.getElementById('lp-cmdname').value = '';
+    document.getElementById('learn-picker').style.display = 'block';
+    document.getElementById('lp-btn').disabled = false;
+    document.getElementById('lp-btn').innerHTML = '&#128225; H&#7885;c';
+  }
+
+  function closePicker() {
+    document.getElementById('learn-picker').style.display = 'none';
+    _pickerDevId = null;
+  }
+
+  async function learnAndBind() {
+    const cmdName = document.getElementById('lp-cmdname').value.trim();
+    if (!cmdName) { setStatus('Nh&#7853;p t&#234;n l&#7879;nh', 'err'); return; }
+    const btn = document.getElementById('lp-btn');
+    btn.disabled = true;
+    btn.innerHTML = '&#9203; &#272;ang ch&#7901;...';
+    setStatus('H&#432;&#7899;ng &#273;i&#7873;u khi&#7875;n g&#7889;c v&#224;o m&#7855;t th&#7847;n v&#224; nh&#7845;n n&#250;t...');
+
+    await fetch('/api/ir/learn', { method: 'POST' });
+
+    let elapsed = 0;
+    const t = setInterval(async () => {
+      elapsed += 1000;
+      const r  = await fetch('/api/ir/learn');
+      const d  = await r.json();
+      if (d.done) {
+        clearInterval(t);
+        // save to device
+        await fetch('/api/devices/' + _pickerDevId + '/cmds', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ cmd: cmdName, proto: d.protocol, code: d.code, bits: d.bits })
+        });
+        setStatus('&#10003; L&#432;u l&#7879;nh "' + cmdName + '": ' + d.protocol + ' ' + d.code, 'ok');
+        closePicker();
+        loadDevices();
+      } else if (elapsed >= 11000) {
+        clearInterval(t);
+        setStatus('Kh&#244;ng nh&#7853;n &#273;&#432;&#7907;c t&#237;n hi&#7879;u', 'err');
+        btn.disabled = false;
+        btn.innerHTML = '&#128225; H&#7885;c';
+      }
+    }, 1000);
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────

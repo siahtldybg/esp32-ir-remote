@@ -15,9 +15,11 @@
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <uri/UriBraces.h>
 #include <ArduinoJson.h>
 #include "config.h"
 #include "ir.h"
+#include "devices.h"
 #include "html.h"
 
 WebServer server(SERVER_PORT);
@@ -120,6 +122,54 @@ void handleIrLearnPost() {
   server.send(200, "application/json", "{\"status\":\"listening\"}");
 }
 
+// ── Device Registry routes ────────────────────────────────────────────────────
+
+void handleDevicesGet() {
+  addCors();
+  server.send(200, "application/json", devicesGetAll());
+}
+
+void handleDevicesPost() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  String err = devicesCreate(server.arg("plain"));
+  if (err.isEmpty()) server.send(200, "application/json", "{\"ok\":true}");
+  else server.send(400, "application/json", "{\"error\":\"" + err + "\"}");
+}
+
+void handleDevicesDelete() {
+  addCors();
+  String id = server.pathArg(0);
+  if (devicesDelete(id)) server.send(200, "application/json", "{\"ok\":true}");
+  else server.send(404, "application/json", "{\"error\":\"not found\"}");
+}
+
+void handleDevicesAddCmd() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  String id  = server.pathArg(0);
+  String err = devicesAddCmd(id, server.arg("plain"));
+  if (err.isEmpty()) server.send(200, "application/json", "{\"ok\":true}");
+  else server.send(400, "application/json", "{\"error\":\"" + err + "\"}");
+}
+
+void handleDevicesSendCmd() {
+  addCors();
+  String id  = server.pathArg(0);
+  String cmd = server.pathArg(1);
+  String proto; uint64_t code = 0; uint16_t bits = 32;
+  if (!devicesGetCmd(id, cmd, proto, code, bits)) {
+    server.send(404, "application/json", "{\"error\":\"device or command not found\"}"); return;
+  }
+  bool ok = irRawSend(proto, code, bits);
+  server.send(ok ? 200 : 400, "application/json",
+    ok ? "{\"ok\":true}" : "{\"error\":\"unsupported protocol\"}");
+}
+
 void handleIrLearnGet() {
   addCors();
   String proto, codeHex; uint16_t bits = 0;
@@ -168,6 +218,14 @@ void setup() {
   server.on("/api/ir/raw",     HTTP_OPTIONS, handleOptions);
   server.on("/api/ir/learn",   HTTP_POST,    handleIrLearnPost);
   server.on("/api/ir/learn",   HTTP_GET,     handleIrLearnGet);
+
+  server.on("/api/devices",              HTTP_GET,     handleDevicesGet);
+  server.on("/api/devices",              HTTP_POST,    handleDevicesPost);
+  server.on("/api/devices",              HTTP_OPTIONS, handleOptions);
+  server.on(UriBraces("/api/devices/{}"),          HTTP_DELETE,  handleDevicesDelete);
+  server.on(UriBraces("/api/devices/{}/cmds"),     HTTP_POST,    handleDevicesAddCmd);
+  server.on(UriBraces("/api/devices/{}/cmds"),     HTTP_OPTIONS, handleOptions);
+  server.on(UriBraces("/api/devices/{}/cmd/{}"),   HTTP_POST,    handleDevicesSendCmd);
 
   server.begin();
   Serial.printf("Web UI: http://%s\n", WiFi.localIP().toString().c_str());
