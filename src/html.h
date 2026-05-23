@@ -257,8 +257,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   <!-- Learn & bind picker (shown when adding a command) -->
   <div class="learn-picker" id="learn-picker">
     <p>&#128225; H&#432;&#7899;ng &#273;i&#7873;u khi&#7875;n g&#7889;c v&#224;o m&#7855;t th&#7847;n v&#224; nh&#7845;n n&#250;t c&#7847;n h&#7885;c...</p>
+    <div class="form-row" style="margin-bottom:6px">
+      <input class="form-input" id="lp-label" placeholder="Nh&#227;n (v&#237; d&#7909;: B&#7853;t / T&#7855;t)" oninput="autoFillId('lp-label','lp-cmdname')" />
+    </div>
     <div class="form-row">
-      <input class="form-input" id="lp-cmdname" placeholder="T&#234;n l&#7879;nh (v&#237;d&#7909;: power, vol_up)" />
+      <input class="form-input" id="lp-cmdname" placeholder="ID l&#7879;nh (t&#7921; &#273;i&#7873;n)" oninput="this.dataset.manual='1'" />
       <button class="btn-sm" id="lp-btn" onclick="learnAndBind()">&#128225; H&#7885;c</button>
     </div>
     <button class="btn-sm danger" style="width:100%;margin-top:4px" onclick="closePicker()">H&#7911;y</button>
@@ -290,8 +293,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="form-row" style="margin-bottom:8px">
       <select class="form-input" id="save-dev-select" style="cursor:pointer"></select>
     </div>
+    <div class="form-row" style="margin-bottom:6px">
+      <input class="form-input" id="save-label" placeholder="Nh&#227;n (v&#237; d&#7909;: B&#7853;t / T&#7855;t)" oninput="autoFillId('save-label','save-cmd-name')" />
+    </div>
     <div class="form-row">
-      <input class="form-input" id="save-cmd-name" placeholder="T&#234;n l&#7879;nh (v&#237; d&#7909;: power, vol_up)" />
+      <input class="form-input" id="save-cmd-name" placeholder="ID l&#7879;nh (t&#7921; &#273;i&#7873;n)" oninput="this.dataset.manual='1'" />
       <button class="btn-sm" onclick="saveLearnedToDevice()">L&#432;u</button>
     </div>
   </div>
@@ -302,6 +308,20 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <script>
   // ── State ───────────────────────────────────────────────────────────────────
   let ac = { power: false, temp: 25, mode: 'cool', fan: 'auto' };
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function toId(str) {
+    return str.normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+  function autoFillId(srcId, dstId) {
+    const dst = document.getElementById(dstId);
+    if (!dst.dataset.manual) dst.value = toId(document.getElementById(srcId).value);
+  }
 
   // ── Tab ─────────────────────────────────────────────────────────────────────
   const TAB_NAMES = ['tv','ac','fan','devices','learn'];
@@ -435,25 +455,28 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     } catch(_) {
       sel.innerHTML = '<option value="">L&#7895;i t&#7843;i danh s&#225;ch</option>';
     }
-    document.getElementById('save-cmd-name').value = '';
+    document.getElementById('save-label').value = '';
+    const sc = document.getElementById('save-cmd-name');
+    sc.value = ''; delete sc.dataset.manual;
     document.getElementById('save-panel').style.display = 'block';
   }
 
   async function saveLearnedToDevice() {
     const devId   = document.getElementById('save-dev-select').value;
+    const label   = document.getElementById('save-label').value.trim();
     const cmdName = document.getElementById('save-cmd-name').value.trim();
     const proto   = document.getElementById('lr-proto').textContent;
     const code    = document.getElementById('lr-code').textContent;
     const bits    = parseInt(document.getElementById('lr-bits').textContent);
     if (!devId)   { setStatus('Ch&#7885;n thi&#7871;t b&#7883;', 'err'); return; }
-    if (!cmdName) { setStatus('Nh&#7853;p t&#234;n l&#7879;nh', 'err'); return; }
+    if (!cmdName) { setStatus('Nh&#7853;p ID l&#7879;nh', 'err'); return; }
     const r = await fetch('/api/devices/' + devId + '/cmds', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ cmd: cmdName, proto, code, bits })
+      body: JSON.stringify({ cmd: cmdName, label, proto, code, bits })
     });
     if (r.ok) {
-      setStatus('&#10003; &#272;&#227; l&#432;u l&#7879;nh "' + cmdName + '" v&#224;o thi&#7871;t b&#7883;', 'ok');
+      setStatus('&#10003; &#272;&#227; l&#432;u l&#7879;nh "' + (label || cmdName) + '" v&#224;o thi&#7871;t b&#7883;', 'ok');
       document.getElementById('save-panel').style.display = 'none';
     } else {
       setStatus('L&#7895;i l&#432;u', 'err');
@@ -473,9 +496,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         return;
       }
       list.innerHTML = devs.map(dev => {
-        const cmds = Object.keys(dev.cmds || {});
-        const cmdBtns = cmds.map(c =>
-          `<button class="cmd-chip" onclick="sendDevCmd('${dev.id}','${c}')">${c}</button>`
+        const cmdBtns = Object.entries(dev.cmds || {}).map(([key, val]) =>
+          `<button class="cmd-chip" onclick="sendDevCmd('${dev.id}','${key}')">${val.label || key}</button>`
         ).join('');
         return `<div class="dev-card">
           <div class="dev-card-header">
@@ -525,7 +547,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
   function openPicker(devId) {
     _pickerDevId = devId;
-    document.getElementById('lp-cmdname').value = '';
+    document.getElementById('lp-label').value = '';
+    const cmd = document.getElementById('lp-cmdname');
+    cmd.value = ''; delete cmd.dataset.manual;
     document.getElementById('learn-picker').style.display = 'block';
     document.getElementById('lp-btn').disabled = false;
     document.getElementById('lp-btn').innerHTML = '&#128225; H&#7885;c';
@@ -537,8 +561,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   }
 
   async function learnAndBind() {
+    const label   = document.getElementById('lp-label').value.trim();
     const cmdName = document.getElementById('lp-cmdname').value.trim();
-    if (!cmdName) { setStatus('Nh&#7853;p t&#234;n l&#7879;nh', 'err'); return; }
+    if (!cmdName) { setStatus('Nh&#7853;p nh&#227;n l&#7879;nh', 'err'); return; }
     const btn = document.getElementById('lp-btn');
     btn.disabled = true;
     btn.innerHTML = '&#9203; &#272;ang ch&#7901;...';
@@ -557,9 +582,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         await fetch('/api/devices/' + _pickerDevId + '/cmds', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ cmd: cmdName, proto: d.protocol, code: d.code, bits: d.bits })
+          body: JSON.stringify({ cmd: cmdName, label, proto: d.protocol, code: d.code, bits: d.bits })
         });
-        setStatus('&#10003; L&#432;u l&#7879;nh "' + cmdName + '": ' + d.protocol + ' ' + d.code, 'ok');
+        setStatus('&#10003; L&#432;u l&#7879;nh "' + (label || cmdName) + '": ' + d.protocol + ' ' + d.code, 'ok');
         closePicker();
         loadDevices();
       } else if (elapsed >= 11000) {

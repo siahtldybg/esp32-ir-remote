@@ -102,6 +102,8 @@ String devicesAddCmd(const String& id, const String& body) {
   String proto = req["proto"] | "";
   String code  = req["code"]  | "";
   int    bits  = req["bits"]  | 32;
+  String label = req["label"] | "";
+  if (label.isEmpty()) label = cmd;
   if (cmd.isEmpty() || proto.isEmpty() || code.isEmpty()) return "cmd, proto, code required";
 
   JsonDocument arr;
@@ -109,6 +111,7 @@ String devicesAddCmd(const String& id, const String& body) {
   for (JsonObject dev : arr.as<JsonArray>()) {
     if (String(dev["id"] | "") == id) {
       JsonObject cmds = dev["cmds"].as<JsonObject>();
+      cmds[cmd]["label"] = label;
       cmds[cmd]["proto"] = proto;
       cmds[cmd]["code"]  = code;
       cmds[cmd]["bits"]  = bits;
