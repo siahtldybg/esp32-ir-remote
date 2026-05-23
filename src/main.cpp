@@ -1,0 +1,181 @@
+/*
+ * ESP32 IR Remote — điều khiển TV / điều hòa / quạt qua hồng ngoại
+ *
+ * Kết nối WiFi nhà → truy cập http://<ESP32_IP> từ điện thoại
+ *
+ * REST API:
+ *   GET  /api/status         — WiFi info
+ *   POST /api/ir             — { "device":"tv"|"fan", "cmd":"power"|... }
+ *   GET  /api/ir/ac          — trạng thái điều hòa hiện tại
+ *   POST /api/ir/ac          — { "power":bool, "temp":25, "mode":"cool", "fan":"auto" }
+ *   POST /api/ir/raw         — { "protocol":"NEC", "code":"0xE0E040BF", "bits":32 }
+ *   POST /api/ir/learn       — bắt đầu học mã từ điều khiển gốc
+ *   GET  /api/ir/learn       — kết quả học mã
+ */
+
+#include <WiFi.h>
+#include <WebServer.h>
+#include <ArduinoJson.h>
+#include "config.h"
+#include "ir.h"
+#include "html.h"
+
+WebServer server(SERVER_PORT);
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+
+void addCors() {
+  server.sendHeader("Access-Control-Allow-Origin",  "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+// ── Route handlers ────────────────────────────────────────────────────────────
+
+void handleRoot()    { addCors(); server.send_P(200, "text/html", INDEX_HTML); }
+void handleOptions() { addCors(); server.send(204); }
+
+void handleStatus() {
+  addCors();
+  JsonDocument doc;
+  doc["ip"]     = WiFi.localIP().toString();
+  doc["rssi"]   = WiFi.RSSI();
+  doc["ssid"]   = WiFi.SSID();
+  doc["uptime"] = millis() / 1000;
+  String body; serializeJson(doc, body);
+  server.send(200, "application/json", body);
+}
+
+void handleIr() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  JsonDocument req;
+  if (deserializeJson(req, server.arg("plain"))) {
+    server.send(400, "application/json", "{\"error\":\"invalid json\"}"); return;
+  }
+  String device = req["device"] | "";
+  String cmd    = req["cmd"]    | "";
+  bool ok = false;
+  if (device == "tv")  ok = irTvCmd(cmd);
+  if (device == "fan") ok = irFanCmd(cmd);
+  server.send(ok ? 200 : 400, "application/json",
+    ok ? "{\"ok\":true}" : "{\"error\":\"unknown device or command\"}");
+}
+
+void handleIrAcGet() {
+  addCors();
+  const AcState& s = irAcState();
+  JsonDocument doc;
+  doc["power"] = s.power;
+  doc["temp"]  = s.temp;
+  doc["mode"]  = s.mode;
+  doc["fan"]   = s.fan;
+  String body; serializeJson(doc, body);
+  server.send(200, "application/json", body);
+}
+
+void handleIrAcPost() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  JsonDocument req;
+  if (deserializeJson(req, server.arg("plain"))) {
+    server.send(400, "application/json", "{\"error\":\"invalid json\"}"); return;
+  }
+  const AcState& cur = irAcState();
+  bool   power = req["power"].is<bool>()   ? req["power"].as<bool>()   : cur.power;
+  float  temp  = req["temp"].is<float>()   ? req["temp"].as<float>()   : cur.temp;
+  String mode  = req["mode"].is<const char*>() ? req["mode"].as<String>()  : cur.mode;
+  String fan   = req["fan"].is<const char*>()  ? req["fan"].as<String>()   : cur.fan;
+  if (!irAcSend(power, temp, mode, fan)) {
+    server.send(502, "application/json", "{\"error\":\"ir send failed\"}"); return;
+  }
+  handleIrAcGet();
+}
+
+void handleIrRaw() {
+  addCors();
+  if (!server.hasArg("plain")) {
+    server.send(400, "application/json", "{\"error\":\"missing body\"}"); return;
+  }
+  JsonDocument req;
+  if (deserializeJson(req, server.arg("plain"))) {
+    server.send(400, "application/json", "{\"error\":\"invalid json\"}"); return;
+  }
+  String   proto   = req["protocol"] | "NEC";
+  String   codeStr = req["code"]     | "0";
+  uint64_t code    = strtoull(codeStr.c_str(), nullptr, 16);
+  uint16_t bits    = req["bits"] | 32;
+  bool ok = irRawSend(proto, code, bits);
+  server.send(ok ? 200 : 400, "application/json",
+    ok ? "{\"ok\":true}" : "{\"error\":\"unsupported protocol\"}");
+}
+
+void handleIrLearnPost() {
+  addCors();
+  irStartLearn();
+  server.send(200, "application/json", "{\"status\":\"listening\"}");
+}
+
+void handleIrLearnGet() {
+  addCors();
+  String proto, codeHex; uint16_t bits = 0;
+  bool done = irLearnResult(proto, codeHex, bits);
+  JsonDocument doc;
+  doc["done"] = done;
+  if (done) {
+    doc["protocol"] = proto;
+    doc["code"]     = codeHex;
+    doc["bits"]     = bits;
+  }
+  String body; serializeJson(doc, body);
+  server.send(200, "application/json", body);
+}
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("\n=== ESP32 IR Remote ===");
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.printf("Connecting to %s", WIFI_SSID);
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
+    delay(500); Serial.print("."); attempts++;
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi FAILED — restarting in 3s");
+    delay(3000); ESP.restart();
+  }
+  Serial.printf("\nIP: %s  RSSI: %ddBm\n",
+    WiFi.localIP().toString().c_str(), WiFi.RSSI());
+
+  irSetup();
+
+  server.on("/",               HTTP_GET,     handleRoot);
+  server.on("/api/status",     HTTP_GET,     handleStatus);
+  server.on("/api/ir",         HTTP_POST,    handleIr);
+  server.on("/api/ir",         HTTP_OPTIONS, handleOptions);
+  server.on("/api/ir/ac",      HTTP_GET,     handleIrAcGet);
+  server.on("/api/ir/ac",      HTTP_POST,    handleIrAcPost);
+  server.on("/api/ir/ac",      HTTP_OPTIONS, handleOptions);
+  server.on("/api/ir/raw",     HTTP_POST,    handleIrRaw);
+  server.on("/api/ir/raw",     HTTP_OPTIONS, handleOptions);
+  server.on("/api/ir/learn",   HTTP_POST,    handleIrLearnPost);
+  server.on("/api/ir/learn",   HTTP_GET,     handleIrLearnGet);
+
+  server.begin();
+  Serial.printf("Web UI: http://%s\n", WiFi.localIP().toString().c_str());
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────────
+
+void loop() {
+  server.handleClient();
+  irLearnPoll();
+}
