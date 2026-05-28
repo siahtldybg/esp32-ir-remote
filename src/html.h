@@ -139,6 +139,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 text-align:center;background:#0f172a;border-top:1px solid #1e293b;z-index:10}
     #status-bar.err{color:#f87171}
     #status-bar.ok{color:#4ade80}
+
+    /* Mic button */
+    .mic-btn{position:fixed;bottom:50px;right:16px;width:50px;height:50px;border-radius:50%;
+             background:#0369a1;border:none;color:#fff;font-size:1.25rem;cursor:pointer;
+             box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:15;display:none;align-items:center;
+             justify-content:center;transition:background .15s,transform .1s;
+             -webkit-tap-highlight-color:transparent}
+    .mic-btn:active{transform:scale(.92)}
+    .mic-btn.listening{background:#dc2626;animation:mic-pulse 1s ease-in-out infinite}
+    @keyframes mic-pulse{0%,100%{box-shadow:0 4px 14px rgba(220,38,38,.4)}
+                         50%{box-shadow:0 0 28px rgba(220,38,38,.7)}}
   </style>
 </head>
 <body>
@@ -303,11 +314,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   </div>
 </div>
 
+<button class="mic-btn" id="mic-btn" onclick="toggleVoice()" title="Ra l&#7879;nh gi&#7885;ng n&#243;i">&#127908;</button>
 <div id="status-bar">&#272;ang k&#7871;t n&#7889;i...</div>
 
 <script>
   // ── State ───────────────────────────────────────────────────────────────────
   let ac = { power: false, temp: 25, mode: 'cool', fan: 'auto' };
+  let _devices = [], _voiceActive = false, _recognition = null;
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   function toId(str) {
@@ -490,6 +503,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     try {
       const r = await fetch('/api/devices');
       const devs = await r.json();
+      _devices = devs;
       const list = document.getElementById('dev-list');
       if (!devs.length) {
         list.innerHTML = '<p style="color:#475569;font-size:.8rem">Ch&#432;a c&#243; thi&#7871;t b&#7883; n&#224;o.</p>';
@@ -633,6 +647,85 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     if (e.target === this) closeSettings();
   });
 
+  // ── Voice control ────────────────────────────────────────────────────────────
+  function handleVoiceResult(transcript) {
+    const norm = toId(transcript);
+    const isTat = norm === 'tat' || norm.startsWith('tat_') || norm.includes('_tat_') || norm.endsWith('_tat');
+
+    // strip action word to get device identifier
+    const devPart = norm
+      .replace(/^bat_?/, '').replace(/^tat_?/, '')
+      .replace(/^mo_?/, '').replace(/^dong_?/, '')
+      .replace(/^len_?/, '').replace(/^ngung_?/, '');
+
+    if (!_devices.length) {
+      fetch('/api/devices').then(r => r.json()).then(d => { _devices = d; handleVoiceResult(transcript); });
+      return;
+    }
+
+    // find best matching device
+    let match = _devices.find(d => d.id === devPart || toId(d.name) === devPart);
+    if (!match) match = _devices.find(d => d.id.includes(devPart) || toId(d.name).includes(devPart));
+    if (!match && devPart) {
+      const words = devPart.split('_').filter(w => w.length > 1);
+      match = _devices.find(d => words.some(w => d.id.includes(w) || toId(d.name).includes(w)));
+    }
+
+    if (!match) {
+      setStatus('&#127908; Kh&#244;ng nh&#7853;n ra: "' + transcript + '"', 'err'); return;
+    }
+
+    const keys = Object.keys(match.cmds || {});
+    let cmd;
+    if (!isTat) cmd = keys.find(k => k === 'on') || keys.find(k => k === 'power_on') || keys.find(k => k === 'power') || keys[0];
+    else        cmd = keys.find(k => k === 'off') || keys.find(k => k === 'power_off') || keys.find(k => k === 'power') || keys[0];
+
+    if (!cmd) { setStatus('Thi&#7871;t b&#7883; ch&#432;a c&#243; l&#7879;nh', 'err'); return; }
+
+    sendDevCmd(match.id, cmd);
+    setStatus('&#127908; ' + (isTat ? 'T&#7855;t' : 'B&#7853;t') + ' ' + match.name, 'ok');
+  }
+
+  function initVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    _recognition = new SR();
+    _recognition.lang = 'vi-VN';
+    _recognition.interimResults = false;
+    _recognition.maxAlternatives = 1;
+    _recognition.onresult = e => {
+      const t = e.results[0][0].transcript;
+      setStatus('&#127908; "' + t + '"', '');
+      handleVoiceResult(t);
+    };
+    _recognition.onend = () => {
+      _voiceActive = false;
+      const btn = document.getElementById('mic-btn');
+      btn.classList.remove('listening');
+      btn.innerHTML = '&#127908;';
+    };
+    _recognition.onerror = e => {
+      _voiceActive = false;
+      const btn = document.getElementById('mic-btn');
+      btn.classList.remove('listening');
+      btn.innerHTML = '&#127908;';
+      if (e.error !== 'no-speech') setStatus('L&#7895;i micro: ' + e.error, 'err');
+    };
+    const btn = document.getElementById('mic-btn');
+    btn.style.display = 'flex';
+  }
+
+  function toggleVoice() {
+    if (!_recognition) return;
+    if (_voiceActive) { _recognition.stop(); return; }
+    _voiceActive = true;
+    const btn = document.getElementById('mic-btn');
+    btn.classList.add('listening');
+    btn.innerHTML = '&#9209;&#65039;';
+    setStatus('&#127908; &#272;ang l&#7855;ng nghe... H&#227;y n&#243;i l&#7879;nh');
+    _recognition.start();
+  }
+
   // ── Init ────────────────────────────────────────────────────────────────────
   async function loadStatus() {
     try {
@@ -646,6 +739,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   renderAc();
   loadStatus();
   setInterval(loadStatus, 30000);
+  initVoice();
 </script>
 </body>
 </html>
